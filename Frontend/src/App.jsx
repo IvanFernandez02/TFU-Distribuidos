@@ -26,14 +26,14 @@ async function apiPost(path, body = {}) {
   return res.json();
 }
 
-/* ─── Tarjetas de Balanceador (PC 3) y Coordinador (PC 2) ─── */
+/* ─── Tarjetas de Balanceador (192.168.1.12) y Coordinador (192.168.1.13) ─── */
 function LoadBalancerCard({ aiEnabled, aiPriority }) {
   return (
     <div className="node-card node-card--coord" style={{ marginBottom: '1rem' }}>
       <div className="node-card__header">
         <div className="node-card__info">
           <h3>BALANCEADOR DE CARGA</h3>
-          <span>PC 3 · PUERTO :8000</span>
+          <span>LAN: 192.168.1.12 · PUERTO :8000</span>
         </div>
         <span className="node-status-tag node-status-tag--alive">ACTIVO</span>
       </div>
@@ -59,7 +59,7 @@ function CoordinatorCard({ aiEnabled }) {
       <div className="node-card__header">
         <div className="node-card__info">
           <h3>COORDINADOR QUÓRUM</h3>
-          <span>PC 2 · PUERTO :7000</span>
+          <span>LAN: 192.168.1.13 · PUERTO :7000</span>
         </div>
         <span className="node-status-tag node-status-tag--alive">ACTIVO</span>
       </div>
@@ -79,7 +79,7 @@ function CoordinatorCard({ aiEnabled }) {
   );
 }
 
-/* ─── Tarjeta de Réplica (PC 1) ─── */
+/* ─── Tarjeta de Réplica (192.168.1.10) ─── */
 function ReplicaCard({ id, node, count = 0 }) {
   const alive = node ? node.alive : false;
   const state = node ? (node.state || 'CLOSED') : 'OFFLINE';
@@ -89,7 +89,7 @@ function ReplicaCard({ id, node, count = 0 }) {
       <div className="node-card__header">
         <div className="node-card__info">
           <h3>RÉPLICA {id}</h3>
-          <span>PC 1 · PUERTO :{5999 + id}</span>
+          <span>LAN: 192.168.1.10 · PUERTO :{5999 + id}</span>
         </div>
         <span className={`node-status-tag ${alive ? 'node-status-tag--alive' : 'node-status-tag--dead'}`}>
           {alive ? 'VIVO' : 'CAÍDO'}
@@ -274,7 +274,7 @@ export default function App() {
           <div className="logo-box">RSL</div>
           <div className="title-box">
             <h1>Sistema de Replicación & Quórum Distribuido</h1>
-            <p>Topología 4 Computadoras · Sharded Likes · Gifford (N=3, W=2, R=2)</p>
+            <p>Topología LAN 4 Computadoras · Sharded Likes · Gifford (N=3, W=2, R=2)</p>
           </div>
         </div>
         <div className="top-nav__right">
@@ -300,7 +300,7 @@ export default function App() {
         {/* TOPOLOGÍA DEL CLÚSTER */}
         <section className="panel">
           <div className="panel__title-bar">
-            <h2>🖥️ Topología y Estado en Tiempo Real (Las 4 Computadoras)</h2>
+            <h2>🖥️ Topología y Estado en Tiempo Real (Red LAN 4 Computadoras)</h2>
             <span className="panel__subtitle">Supervisión en vivo de puertos, roles y almacenamiento PostgreSQL</span>
           </div>
           <div className="topology-grid">

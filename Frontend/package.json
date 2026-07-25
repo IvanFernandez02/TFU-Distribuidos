@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"node server.js\" \"vite\"",
+    "dev:lan": "COORD_HOST=192.168.1.12 COORD_PORT=8000 concurrently \"node server.js\" \"vite\"",
     "server": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:lan": "COORD_HOST=192.168.1.12 COORD_PORT=8000 node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

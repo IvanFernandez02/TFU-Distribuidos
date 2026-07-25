@@ -1,0 +1,44 @@
+# ==========================================================
+# Coordinator Service — Perfil LAN (Red Local 4 PCs)
+# ==========================================================
+# Se activa con: java -jar coordinator-service.jar --spring.profiles.active=lan
+# ==========================================================
+
+server:
+  port: 7000
+
+quorum:
+  n: 3
+  w: 2
+  r: 2
+  nodes:
+    - id: 1
+      host: 192.168.1.10
+      port: 6001
+    - id: 2
+      host: 192.168.1.10
+      port: 6002
+    - id: 3
+      host: 192.168.1.10
+      port: 6003
+
+socket:
+  timeout-ms: 2500
+
+heartbeat:
+  interval-ms: 1500
+
+circuit-breaker:
+  fail-threshold: 3
+  cooldown-ms: 10000
+
+ai:
+  enabled: true
+  ollama-url: http://localhost:11434/api/generate
+  model: qwen2.5-coder:3b
+  timeout-ms: 15000
+  consult-interval-ms: 10000
+
+logging:
+  level:
+    com.quorum: INFO

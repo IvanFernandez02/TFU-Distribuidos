@@ -104,30 +104,36 @@ curl http://localhost:11434/api/generate -d '{"model":"qwen2.5-coder:3b","prompt
 
 Si Ollama no está disponible, el sistema lo detecta automáticamente y continúa funcionando en modo 100% determinista (Round-Robin y umbral fijo de fallos), exactamente igual que si la IA estuviera apagada.
 
-## Despliegue en las 4 PCs físicas (router/switch)
+## Despliegue en Red Local LAN (4 PCs físicas)
 
-Topología configurada para el laboratorio con **4 máquinas físicas**:
+Topología configurada y pre-armada para el laboratorio con **4 máquinas físicas LAN**:
+- **PC 1 (Servidor de Réplicas)**: `192.168.1.10`
+- **PC 2 (Servidor Coordinador + Ollama IA)**: `192.168.1.13`
+- **PC 3 (Servidor Balanceador de Carga)**: `192.168.1.12`
+- **PC 4 (Cliente / Frontend Web React)**: `192.168.1.11`
 
-| Equipo | Rol                    | Configuración y Comando de Lanzamiento                                              |
-|--------|------------------------|-------------------------------------------------------------------|
-| **PC 1** | **Servidor de Réplicas**<br>*(Alberga las 3 réplicas)* | En 3 terminales distintas en PC 1:<br>`java -jar replica-service.jar --server.port=6001 --replica.node-id=1`<br>`java -jar replica-service.jar --server.port=6002 --replica.node-id=2`<br>`java -jar replica-service.jar --server.port=6003 --replica.node-id=3` |
-| **PC 2** | **Servidor Coordinador**<br>*(Quórum Gifford + IA)* | Redirigiendo a la IP real de PC 1 (`<IP_PC1>`):<br>`java -jar coordinator-service.jar --quorum.nodes[0].host=<IP_PC1> --quorum.nodes[1].host=<IP_PC1> --quorum.nodes[2].host=<IP_PC1>` |
-| **PC 3** | **Balanceador de Carga**<br>*(Enrutador inteligente)* | Redirigiendo a la IP real de PC 2 (`<IP_PC2>`):<br>`java -jar loadbalancer-service.jar --loadbalancer.coordinators[0].url=http://<IP_PC2>:7000` |
-| **PC 4** | **Cliente / Frontend Web**<br>*(Interfaz visual y ráfagas)* | Redirigiendo a la IP real de PC 3 (`<IP_PC3>`):<br>`COORD_HOST=<IP_PC3> COORD_PORT=8000 node server.js` |
+Gracias a los perfiles preconfigurados (`application-lan.yml` y scripts LAN), el lanzamiento en cada máquina se reduce a un solo comando:
+
+| Equipo | Rol & IP LAN | Comando de Ejecución en LAN |
+|---|---|---|
+| **PC 1** | **Servidor de Réplicas**<br>`192.168.1.10` | En 3 terminales distintas (o pestañas):<br>`java -jar replica-service.jar --server.port=6001 --replica.node-id=1`<br>`java -jar replica-service.jar --server.port=6002 --replica.node-id=2`<br>`java -jar replica-service.jar --server.port=6003 --replica.node-id=3` |
+| **PC 2** | **Servidor Coordinador**<br>`192.168.1.13` | Usando el perfil LAN precargado hacia `192.168.1.10`: <br>`java -jar coordinator-service.jar --spring.profiles.active=lan` |
+| **PC 3** | **Balanceador de Carga**<br>`192.168.1.12` | Usando el perfil LAN precargado hacia `192.168.1.13`: <br>`java -jar loadbalancer-service.jar --spring.profiles.active=lan` |
+| **PC 4** | **Cliente / Frontend Web**<br>`192.168.1.11` | Desde la carpeta `Frontend/` con el comando rápido LAN:<br>`npm run dev:lan` *(o `npm run start:lan` si está construido)* |
 
 ### Pasos paso a paso:
 
-1. Conectar las 4 PCs al mismo router/switch (misma subred, ej. `192.168.1.0/24`).
-2. Anotar la dirección IP estática o local de cada PC (`ip addr` en Linux / `ipconfig` en Windows).
-3. Copiar la carpeta del proyecto ya compilada (o compilar con `mvn package`) en las 4 PCs.
-4. Verificar que el firewall/ufw de cada PC permita conexiones entrantes en los puertos correspondientes (`6001-6003` en PC 1, `7000` en PC 2, `8000` en PC 3 y `3001` en PC 4).
-5. Iniciar por orden:
-   - **Primero:** Las 3 instancias en **PC 1** (y verificar que PostgreSQL esté en ejecución).
-   - **Segundo:** El Coordinador en **PC 2**, apuntando al host de PC 1.
-   - **Tercero:** El Balanceador en **PC 3**, apuntando al host de PC 2.
-   - **Cuarto:** El servidor Frontend en **PC 4**, apuntando al host de PC 3.
-6. Abrir el navegador en PC 4 en `http://localhost:3001` (o desde cualquier otro dispositivo de la red apuntando a `http://<IP_PC4>:3001`).
-7. **Demostración de tolerancia a fallos:** Mientras desde la interfaz web (PC 4) se genera una ráfaga de 100 Likes o peticiones continuas, detener con `Ctrl+C` cualquiera de las terminales de réplica en **PC 1**. El Coordinador detectará el fallo vía Heartbeat, aislará el nodo con el Circuit Breaker y el quórum ($W=2, R=2$) seguirá garantizando el éxito de las transacciones sin pérdida de datos.
+1. Conectar las 4 PCs a la misma red local (LAN router/switch en la subred `192.168.1.0/24`).
+2. Confirmar que cada máquina tenga asignada la IP correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`).
+3. Copiar la carpeta del proyecto ya compilada en las 4 computadoras.
+4. Verificar que el firewall (`ufw` / iptables / firewall de Windows) permita el tráfico entrante en los puertos de servicio (`6001-6003` en PC 1, `7000` en PC 2, `8000` en PC 3 y `5173`/`3001` en PC 4).
+5. Iniciar los servicios en estricto orden de dependencias:
+   - **Paso 1 (PC 1 - `192.168.1.10`):** Iniciar las 3 instancias de réplica en sus puertos respectivos (verificando que PostgreSQL esté corriendo con usuario `postgres` y clave `admin`).
+   - **Paso 2 (PC 2 - `192.168.1.13`):** Iniciar el Coordinador con `--spring.profiles.active=lan`. Al arrancar, verificará el Heartbeat conectándose automáticamente con las 3 réplicas en `.10`.
+   - **Paso 3 (PC 3 - `192.168.1.12`):** Iniciar el Balanceador de Carga con `--spring.profiles.active=lan`, conectándose con el Coordinador en `.13`.
+   - **Paso 4 (PC 4 - `192.168.1.11`):** Iniciar el Frontend con `npm run dev:lan`.
+6. **Interactuar con el sistema:** Abrir el navegador desde PC 4 entrando a `http://localhost:5173` (o desde el teléfono o cualquier otra PC de la red entrando a `http://192.168.1.11:5173`).
+7. **Demostración de tolerancia a fallos en vivo:** Al iniciar una ráfaga de 100 Likes desde la interfaz web, desconectar o cerrar con `Ctrl+C` cualquiera de las terminales en PC 1 (`192.168.1.10`). Se observará de inmediato en el panel de auditoría visual y en los logs cómo el Heartbeat en PC 2 cambia el estado a **OPEN**, el Circuit Breaker aísla el nodo caído, y el sistema sigue procesando el tráfico con las 2 réplicas restantes garantizando el quórum ($W=2, R=2$).
 
 ## Evidencia y Arquitectura
 

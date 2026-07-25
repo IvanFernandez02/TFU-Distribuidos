@@ -1,0 +1,19 @@
+# ==========================================================
+# Load Balancer Service — Perfil LAN (Red Local 4 PCs)
+# ==========================================================
+# Se activa con: java -jar loadbalancer-service.jar --spring.profiles.active=lan
+# ==========================================================
+
+server:
+  port: 8000
+
+loadbalancer:
+  coordinators:
+    - url: http://192.168.1.13:7000
+  ollama:
+    url: http://192.168.1.13:11434
+    model: qwen2.5-coder:3b
+
+spring:
+  application:
+    name: loadbalancer-service

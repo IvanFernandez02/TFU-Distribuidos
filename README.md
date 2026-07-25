@@ -115,35 +115,35 @@ Topología configurada y pre-armada para el laboratorio con **4 máquinas físic
 > [!CAUTION]
 > **Conexión por Cable Ethernet a Switch (Sin Router / DHCP)**:
 > Al conectar las 4 computadoras mediante cables de red directos a un **Switch no administrado**, el switch no asignará direcciones IP automáticamente. Debes realizar lo siguiente antes de ejecutar los servicios:
-> 1. **Configurar IP Estática / Manual en el adaptador Ethernet (`eth0` / `enp...`)**: En cada PC, entra a la configuración de red por cable (Ajustes de Red en Linux o Network Adapter en Windows), selecciona **Manual (Estático)** y asigna la dirección IPv4 correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`) con Máscara de Subred `255.255.255.0` (o `/24`).
+> 1. **Configurar IP Estática / Manual en el adaptador Ethernet (`eth0` / `enp...`)**: En cada PC con Linux, entra a la configuración de red por cable (Ajustes de Red / Network Manager), selecciona el método **Manual (Estático)** y asigna la dirección IPv4 correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`) con Máscara de Subred `255.255.255.0` (o `/24`).
 > 2. **Verificar cableado con `ping`**: Antes de abrir Java o Node, abre una terminal en la PC Cliente (`192.168.1.11`) y comprueba la comunicación a nivel de enlace de datos:
 >    ```bash
 >    ping -c 3 192.168.1.10   # Probar hacia PC Réplicas
 >    ping -c 3 192.168.1.13   # Probar hacia PC Coordinador
 >    ping -c 3 192.168.1.12   # Probar hacia PC Balanceador
 >    ```
-> 3. **Firewall en tarjeta de red**: Asegúrate de que el cortafuegos permita conexiones entrantes por la interfaz cableada o desactívalo temporalmente en el laboratorio (`sudo ufw disable` en Linux o desactivar Firewall en red privada en Windows).
+> 3. **Firewall en tarjeta de red**: Asegúrate de que el cortafuegos permita conexiones entrantes por la interfaz cableada o desactívalo temporalmente en el laboratorio (`sudo ufw disable` o `sudo ufw allow 6001:6003/tcp`, `sudo ufw allow 7000/tcp`, etc.).
 
-Gracias a los nuevos scripts automatizados en la raíz del proyecto (`.sh` para Linux/macOS y `.bat` para Windows), tus compañeros solo deben hacer `git pull`, abrir una terminal en la **carpeta raíz** y ejecutar el script que le corresponde a su PC:
+Gracias a los nuevos scripts automatizados en la raíz del proyecto, tus compañeros solo deben hacer `git pull`, abrir una terminal nativa de Linux en la **carpeta raíz** y ejecutar el script que le corresponde a su PC:
 
 | Equipo | Rol & IP LAN | Comando de Ejecución (¡Directo desde la carpeta raíz!) |
 |---|---|---|
-| **PC 1** | **Servidor de Réplicas**<br>`192.168.1.10` | Abre 3 terminales o pestañas en la carpeta raíz y ejecuta en cada una:<br>`./run-pc1-replicas.sh 1`<br>`./run-pc1-replicas.sh 2`<br>`./run-pc1-replicas.sh 3`<br>*(En Windows usa `run-pc1-replicas.bat 1`, etc.)* |
-| **PC 2** | **Servidor Coordinador**<br>`192.168.1.13` | En 1 terminal en la carpeta raíz:<br>`./run-pc2-coordinador.sh`<br>*(En Windows usa `run-pc2-coordinador.bat`)* |
-| **PC 3** | **Balanceador de Carga**<br>`192.168.1.12` | En 1 terminal en la carpeta raíz:<br>`./run-pc3-balanceador.sh`<br>*(En Windows usa `run-pc3-balanceador.bat`)* |
-| **PC 4** | **Cliente / Frontend Web**<br>`192.168.1.11` | En 1 terminal en la carpeta raíz:<br>`./run-pc4-cliente.sh`<br>*(En Windows usa `run-pc4-cliente.bat`)* |
+| **PC 1** | **Servidor de Réplicas**<br>`192.168.1.10` | Abre 3 terminales o pestañas en la carpeta raíz y ejecuta en cada una:<br>`./run-pc1-replicas.sh 1`<br>`./run-pc1-replicas.sh 2`<br>`./run-pc1-replicas.sh 3` |
+| **PC 2** | **Servidor Coordinador**<br>`192.168.1.13` | En 1 terminal en la carpeta raíz:<br>`./run-pc2-coordinador.sh` |
+| **PC 3** | **Balanceador de Carga**<br>`192.168.1.12` | En 1 terminal en la carpeta raíz:<br>`./run-pc3-balanceador.sh` |
+| **PC 4** | **Cliente / Frontend Web**<br>`192.168.1.11` | En 1 terminal en la carpeta raíz:<br>`./run-pc4-cliente.sh` |
 
 > [!TIP]
-> Los scripts detectan si el código ya fue compilado con Maven o si falta `node_modules`. Si no se han construido, ¡los compilan e instalan automáticamente antes de lanzar el servicio! Si desean construir todo de antemano de un solo golpe, pueden ejecutar `./build-all.sh` (o `build-all.bat`).
+> Los scripts detectan si el código ya fue compilado con Maven o si falta `node_modules`. Si no se han construido, ¡los compilan e instalan automáticamente antes de lanzar el servicio! Si desean construir todo de antemano de un solo golpe, pueden ejecutar `./build-all.sh`.
 
-### Pasos paso a paso para el grupo:
+### Pasos paso a paso para el grupo (en Linux):
 
 1. Conectar las 4 PCs al Switch con los cables Ethernet.
 2. Confirmar que cada máquina tenga asignada manualmente la IP estática correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`).
 3. Hacer un `git pull` en las 4 computadoras para descargar estos scripts actualizados en la raíz.
-4. Verificar con `ping` que las PCs se ven entre sí por el switch y que el firewall (`ufw` / Firewall de Windows) permita el tráfico.
+4. Verificar con `ping` que las PCs se ven entre sí por el switch y que el firewall (`sudo ufw status`) permita el tráfico.
 5. Iniciar los scripts por orden desde la carpeta raíz:
-   - **Paso 1 (PC 1 - `192.168.1.10`):** Ejecutar los 3 scripts de réplicas en sus terminales (verificando que PostgreSQL esté corriendo).
+   - **Paso 1 (PC 1 - `192.168.1.10`):** Ejecutar los 3 scripts de réplicas en sus terminales (verificando que PostgreSQL esté corriendo con usuario `postgres` y clave `admin`).
    - **Paso 2 (PC 2 - `192.168.1.13`):** Ejecutar `./run-pc2-coordinador.sh`.
    - **Paso 3 (PC 3 - `192.168.1.12`):** Ejecutar `./run-pc3-balanceador.sh`.
    - **Paso 4 (PC 4 - `192.168.1.11`):** Ejecutar `./run-pc4-cliente.sh`.

@@ -124,26 +124,29 @@ Topología configurada y pre-armada para el laboratorio con **4 máquinas físic
 >    ```
 > 3. **Firewall en tarjeta de red**: Asegúrate de que el cortafuegos permita conexiones entrantes por la interfaz cableada o desactívalo temporalmente en el laboratorio (`sudo ufw disable` en Linux o desactivar Firewall en red privada en Windows).
 
-Gracias a los perfiles preconfigurados (`application-lan.yml` y scripts LAN), el lanzamiento en cada máquina se reduce a un solo comando:
+Gracias a los nuevos scripts automatizados en la raíz del proyecto (`.sh` para Linux/macOS y `.bat` para Windows), tus compañeros solo deben hacer `git pull`, abrir una terminal en la **carpeta raíz** y ejecutar el script que le corresponde a su PC:
 
-| Equipo | Rol & IP LAN | Comando de Ejecución en LAN |
+| Equipo | Rol & IP LAN | Comando de Ejecución (¡Directo desde la carpeta raíz!) |
 |---|---|---|
-| **PC 1** | **Servidor de Réplicas**<br>`192.168.1.10` | En 3 terminales distintas (o pestañas):<br>`java -jar replica-service.jar --server.port=6001 --replica.node-id=1`<br>`java -jar replica-service.jar --server.port=6002 --replica.node-id=2`<br>`java -jar replica-service.jar --server.port=6003 --replica.node-id=3` |
-| **PC 2** | **Servidor Coordinador**<br>`192.168.1.13` | Usando el perfil LAN precargado hacia `192.168.1.10`: <br>`java -jar coordinator-service.jar --spring.profiles.active=lan` |
-| **PC 3** | **Balanceador de Carga**<br>`192.168.1.12` | Usando el perfil LAN precargado hacia `192.168.1.13`: <br>`java -jar loadbalancer-service.jar --spring.profiles.active=lan` |
-| **PC 4** | **Cliente / Frontend Web**<br>`192.168.1.11` | Desde la carpeta `Frontend/` con el comando rápido LAN:<br>`npm run dev:lan` *(o `npm run start:lan` si está construido)* |
+| **PC 1** | **Servidor de Réplicas**<br>`192.168.1.10` | Abre 3 terminales o pestañas en la carpeta raíz y ejecuta en cada una:<br>`./run-pc1-replicas.sh 1`<br>`./run-pc1-replicas.sh 2`<br>`./run-pc1-replicas.sh 3`<br>*(En Windows usa `run-pc1-replicas.bat 1`, etc.)* |
+| **PC 2** | **Servidor Coordinador**<br>`192.168.1.13` | En 1 terminal en la carpeta raíz:<br>`./run-pc2-coordinador.sh`<br>*(En Windows usa `run-pc2-coordinador.bat`)* |
+| **PC 3** | **Balanceador de Carga**<br>`192.168.1.12` | En 1 terminal en la carpeta raíz:<br>`./run-pc3-balanceador.sh`<br>*(En Windows usa `run-pc3-balanceador.bat`)* |
+| **PC 4** | **Cliente / Frontend Web**<br>`192.168.1.11` | En 1 terminal en la carpeta raíz:<br>`./run-pc4-cliente.sh`<br>*(En Windows usa `run-pc4-cliente.bat`)* |
 
-### Pasos paso a paso:
+> [!TIP]
+> Los scripts detectan si el código ya fue compilado con Maven o si falta `node_modules`. Si no se han construido, ¡los compilan e instalan automáticamente antes de lanzar el servicio! Si desean construir todo de antemano de un solo golpe, pueden ejecutar `./build-all.sh` (o `build-all.bat`).
 
-1. Conectar las 4 PCs a la misma red local (LAN router/switch en la subred `192.168.1.0/24`).
-2. Confirmar que cada máquina tenga asignada la IP correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`).
-3. Copiar la carpeta del proyecto ya compilada en las 4 computadoras.
-4. Verificar que el firewall (`ufw` / iptables / firewall de Windows) permita el tráfico entrante en los puertos de servicio (`6001-6003` en PC 1, `7000` en PC 2, `8000` en PC 3 y `5173`/`3001` en PC 4).
-5. Iniciar los servicios en estricto orden de dependencias:
-   - **Paso 1 (PC 1 - `192.168.1.10`):** Iniciar las 3 instancias de réplica en sus puertos respectivos (verificando que PostgreSQL esté corriendo con usuario `postgres` y clave `admin`).
-   - **Paso 2 (PC 2 - `192.168.1.13`):** Iniciar el Coordinador con `--spring.profiles.active=lan`. Al arrancar, verificará el Heartbeat conectándose automáticamente con las 3 réplicas en `.10`.
-   - **Paso 3 (PC 3 - `192.168.1.12`):** Iniciar el Balanceador de Carga con `--spring.profiles.active=lan`, conectándose con el Coordinador en `.13`.
-   - **Paso 4 (PC 4 - `192.168.1.11`):** Iniciar el Frontend con `npm run dev:lan`.
+### Pasos paso a paso para el grupo:
+
+1. Conectar las 4 PCs al Switch con los cables Ethernet.
+2. Confirmar que cada máquina tenga asignada manualmente la IP estática correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`).
+3. Hacer un `git pull` en las 4 computadoras para descargar estos scripts actualizados en la raíz.
+4. Verificar con `ping` que las PCs se ven entre sí por el switch y que el firewall (`ufw` / Firewall de Windows) permita el tráfico.
+5. Iniciar los scripts por orden desde la carpeta raíz:
+   - **Paso 1 (PC 1 - `192.168.1.10`):** Ejecutar los 3 scripts de réplicas en sus terminales (verificando que PostgreSQL esté corriendo).
+   - **Paso 2 (PC 2 - `192.168.1.13`):** Ejecutar `./run-pc2-coordinador.sh`.
+   - **Paso 3 (PC 3 - `192.168.1.12`):** Ejecutar `./run-pc3-balanceador.sh`.
+   - **Paso 4 (PC 4 - `192.168.1.11`):** Ejecutar `./run-pc4-cliente.sh`.
 6. **Interactuar con el sistema:** Abrir el navegador desde PC 4 entrando a `http://localhost:5173` (o desde el teléfono o cualquier otra PC de la red entrando a `http://192.168.1.11:5173`).
 7. **Demostración de tolerancia a fallos en vivo:** Al iniciar una ráfaga de 100 Likes desde la interfaz web, desconectar o cerrar con `Ctrl+C` cualquiera de las terminales en PC 1 (`192.168.1.10`). Se observará de inmediato en el panel de auditoría visual y en los logs cómo el Heartbeat en PC 2 cambia el estado a **OPEN**, el Circuit Breaker aísla el nodo caído, y el sistema sigue procesando el tráfico con las 2 réplicas restantes garantizando el quórum ($W=2, R=2$).
 

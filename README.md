@@ -1,11 +1,6 @@
 # Escenario 2 — Red Social: Replicación y Quórum (N=3, W=2, R=2)
 
-Sistema distribuido en Java (Sockets TCP) que simula 3 nodos de base de
-datos replicando el conteo de "Likes" de publicaciones,
-coordinados mediante el algoritmo de cuórum de lectura/escritura de
-Gifford (1979). Incluye persistencia en PostgreSQL, heartbeat y circuit 
-breaker para la detección y aislamiento de nodos caídos, más un asesor 
-de decisiones basado en un LLM local (Llama3 vía Ollama).
+Sistema distribuido de microservicios en Java (Spring Boot REST / TCP) y Frontend web en React que simula 3 nodos de base de datos replicando el conteo de "Likes" de publicaciones, coordinados mediante el algoritmo de cuórum de lectura/escritura de Gifford (1979). Incluye persistencia en PostgreSQL, heartbeat y circuit breaker para la detección y aislamiento de nodos caídos, más un balanceador de carga inteligente y asesor de decisiones basado en un LLM local (Llama3 / Qwen vía Ollama).
 
 ## Arquitectura: Hexagonal (Puertos y Adaptadores)
 
@@ -43,116 +38,97 @@ com.quorum.bootstrap       -> Composition Root: arma y arranca todo
   lugar que hace `new TcpReplicaGateway(...)` o `new OllamaAiAdapter(...)`; el resto
   del código solo depende de las interfaces `ReplicaGateway` / `AiAdvisorPort`.
 
-## Compilar
+## Compilar y Preparar
+
+Para compilar los microservicios e instalar las dependencias del frontend web:
 
 ```bash
-# Compilar las clases en el directorio bin
-javac -d bin $(find src -name "*.java")
+# 1. Compilar los 3 microservicios del Backend (se generarán los .jar en cada target/)
+cd Backend-Microservicios
+mvn clean package -DskipTests
+cd ..
+
+# 2. Instalar dependencias del Frontend (Node.js / React)
+cd Frontend
+npm install
+cd ..
 ```
 
 ## Ejecutar en UNA sola máquina (pruebas locales)
 
 > [!IMPORTANT]
-> Antes de ejecutar, asegúrese de tener PostgreSQL corriendo localmente y de editar las credenciales (usuario/contraseña) en `config/replicas.properties`. Cada nodo réplica intentará crear de forma automática su base de datos (`replica_db_1`, `replica_db_2`, `replica_db_3`) si la cuenta de PostgreSQL configurada tiene permisos de creación de DB.
+> Antes de ejecutar, asegúrese de tener PostgreSQL corriendo localmente con usuario `postgres` y contraseña `admin` (configurable en los `application.yml`). Cada réplica conectará de forma independiente a las bases de datos `replica_db_1`, `replica_db_2` y `replica_db_3`.
+
+Abra 6 terminales en la carpeta raíz del proyecto para simular todo el ecosistema en local:
 
 ```bash
-# Terminal 1, 2, 3: los tres nodos réplica (incluyendo el driver de Postgres en el classpath)
-java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 1 6001
-java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 2 6002
-java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 3 6003
+# Terminal 1, 2, 3: Las 3 instancias de Réplica en paralelo (puertos 6001, 6002, 6003)
+java -jar Backend-Microservicios/replica-service/target/replica-service-0.0.1-SNAPSHOT.jar --server.port=6001 --replica.node-id=1 --spring.datasource.url=jdbc:postgresql://localhost:5432/replica_db_1
 
-# Terminal 4: el coordinador (lee config/replicas.properties)
-java -cp bin com.quorum.bootstrap.CoordinatorMain config/replicas.properties
+java -jar Backend-Microservicios/replica-service/target/replica-service-0.0.1-SNAPSHOT.jar --server.port=6002 --replica.node-id=2 --spring.datasource.url=jdbc:postgresql://localhost:5432/replica_db_2
 
-# Terminal 5: el cliente / generador de carga
-java -cp bin com.quorum.adapters.tcp.ClientSimulator 127.0.0.1 7000 like post123 100 10
-java -cp bin com.quorum.adapters.tcp.ClientSimulator 127.0.0.1 7000 get post123
-java -cp bin com.quorum.adapters.tcp.ClientSimulator 127.0.0.1 7000 status
+java -jar Backend-Microservicios/replica-service/target/replica-service-0.0.1-SNAPSHOT.jar --server.port=6003 --replica.node-id=3 --spring.datasource.url=jdbc:postgresql://localhost:5432/replica_db_3
+
+# Terminal 4: El Coordinador de Quórum (puerto 7000, apunta por defecto a localhost:6001..6003)
+java -jar Backend-Microservicios/coordinator-service/target/coordinator-service-0.0.1-SNAPSHOT.jar
+
+# Terminal 5: El Balanceador de Carga con IA (puerto 8000, redirige al coordinador :7000)
+java -jar Backend-Microservicios/loadbalancer-service/target/loadbalancer-service-0.0.1-SNAPSHOT.jar
+
+# Terminal 6: El Cliente / Servidor del Frontend Web (puerto 3001)
+cd Frontend && npm run dev   # O también: node server.js
 ```
 
-Para simular la caída de un nodo automáticamente (sin apagarlo a mano),
-agregue `--fail-after=SEGUNDOS` al lanzar el `ReplicaNodeServer`, por ejemplo:
+Una vez iniciados, abra el navegador en `http://localhost:3001` o `http://localhost:5173` para interactuar con la interfaz en tiempo real.
+
+Para simular la caída automática de un nodo, añada `--replica.fail-after-seconds=15` al lanzar la réplica:
 
 ```bash
-java -cp bin com.quorum.adapters.tcp.ReplicaNodeServer 3 6003 --fail-after=15
+java -jar Backend-Microservicios/replica-service/target/replica-service-0.0.1-SNAPSHOT.jar --server.port=6003 --replica.node-id=3 --replica.fail-after-seconds=15
 ```
 
-Esto cierra el `ServerSocket` de ese nodo pasados 15 segundos, simulando
-una caída real (crash) sin necesidad de matar el proceso manualmente.
+## Balanceador de carga con IA (Ollama + Llama3 / Qwen, local)
 
-## Balanceador de carga con IA (Ollama + Llama3, local)
-
-El coordinador incluye un adaptador opcional (`OllamaAiAdapter`, detrás del
-puerto `AiAdvisorPort`) que consulta a un modelo Llama3 servido localmente
-por Ollama para recomendar qué réplicas priorizar y sugerir transiciones
-del circuit breaker. Se activa con `ai.enabled=true` en
-`config/replicas.properties` (activado por defecto). Requiere que Ollama
-corra en la **misma PC que el coordinador** (PC4), con el modelo `llama3`
-ya descargado:
+El coordinador y el balanceador consultan de forma opcional a un modelo servido localmente por Ollama para recomendar qué réplicas priorizar y sugerir transiciones del circuit breaker. Se activa por defecto en las propiedades `ai.enabled=true`. Requiere que Ollama corra en la **PC del Coordinador** (PC 2) o del Balanceador (PC 3):
 
 ```bash
 # Verificar que Ollama esté corriendo
 systemctl status ollama   # o: ollama serve &
 
-# Verificar que el modelo esté descargado
+# Verificar que el modelo esté descargado (ej. qwen2.5-coder:3b o llama3)
 ollama list
 
 # Probar la API manualmente
-curl http://localhost:11434/api/generate -d '{"model":"llama3","prompt":"di OK","stream":false}'
+curl http://localhost:11434/api/generate -d '{"model":"qwen2.5-coder:3b","prompt":"di OK","stream":false}'
 ```
 
-Si Ollama no está disponible, `OllamaAiAdapter.consult()` devuelve `null`
-y el coordinador sigue funcionando en modo 100% determinista (heartbeat +
-umbral fijo de fallos), exactamente igual que si `ai.enabled=false`. Esto
-se puede comprobar en `logs/coordinator.log`, donde cada ronda sin
-respuesta de Ollama se registra como "Asesor de IA no disponible en esta
-ronda". Para deshabilitar la IA por completo, basta con poner
-`ai.enabled=false`.
+Si Ollama no está disponible, el sistema lo detecta automáticamente y continúa funcionando en modo 100% determinista (Round-Robin y umbral fijo de fallos), exactamente igual que si la IA estuviera apagada.
 
-## Despliegue en las 5 PCs físicas (router/switch)
+## Despliegue en las 4 PCs físicas (router/switch)
 
-Topología recomendada para el laboratorio:
+Topología configurada para el laboratorio con **4 máquinas físicas**:
 
-| Equipo | Rol                    | Comando a ejecutar                                              |
+| Equipo | Rol                    | Configuración y Comando de Lanzamiento                                              |
 |--------|------------------------|-------------------------------------------------------------------|
-| PC1    | Nodo réplica 1         | `java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 1 6001`   |
-| PC2    | Nodo réplica 2         | `java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 2 6002`   |
-| PC3    | Nodo réplica 3         | `java -cp bin:lib/postgresql-42.7.3.jar com.quorum.adapters.tcp.ReplicaNodeServer 3 6003`   |
-| PC4    | Coordinador            | `java -cp bin com.quorum.bootstrap.CoordinatorMain config/replicas.properties` |
-| PC5    | Cliente / generador    | `java -cp bin com.quorum.adapters.tcp.ClientSimulator <IP_PC4> 7000 like post123 200 20` |
+| **PC 1** | **Servidor de Réplicas**<br>*(Alberga las 3 réplicas)* | En 3 terminales distintas en PC 1:<br>`java -jar replica-service.jar --server.port=6001 --replica.node-id=1`<br>`java -jar replica-service.jar --server.port=6002 --replica.node-id=2`<br>`java -jar replica-service.jar --server.port=6003 --replica.node-id=3` |
+| **PC 2** | **Servidor Coordinador**<br>*(Quórum Gifford + IA)* | Redirigiendo a la IP real de PC 1 (`<IP_PC1>`):<br>`java -jar coordinator-service.jar --quorum.nodes[0].host=<IP_PC1> --quorum.nodes[1].host=<IP_PC1> --quorum.nodes[2].host=<IP_PC1>` |
+| **PC 3** | **Balanceador de Carga**<br>*(Enrutador inteligente)* | Redirigiendo a la IP real de PC 2 (`<IP_PC2>`):<br>`java -jar loadbalancer-service.jar --loadbalancer.coordinators[0].url=http://<IP_PC2>:7000` |
+| **PC 4** | **Cliente / Frontend Web**<br>*(Interfaz visual y ráfagas)* | Redirigiendo a la IP real de PC 3 (`<IP_PC3>`):<br>`COORD_HOST=<IP_PC3> COORD_PORT=8000 node server.js` |
 
-Pasos:
+### Pasos paso a paso:
 
-1. Conectar las 5 PCs al mismo router/switch (misma subred, ej. `192.168.1.0/24`).
-2. Anotar la IP de cada PC (`ip addr` en Linux / `ipconfig` en Windows).
-3. Copiar la carpeta del proyecto a las 5 PCs (o compartir por USB/red).
-4. En **PC4**, editar `config/replicas.properties` y reemplazar
-   `127.0.0.1` por la IP real de PC1, PC2 y PC3:
+1. Conectar las 4 PCs al mismo router/switch (misma subred, ej. `192.168.1.0/24`).
+2. Anotar la dirección IP estática o local de cada PC (`ip addr` en Linux / `ipconfig` en Windows).
+3. Copiar la carpeta del proyecto ya compilada (o compilar con `mvn package`) en las 4 PCs.
+4. Verificar que el firewall/ufw de cada PC permita conexiones entrantes en los puertos correspondientes (`6001-6003` en PC 1, `7000` en PC 2, `8000` en PC 3 y `3001` en PC 4).
+5. Iniciar por orden:
+   - **Primero:** Las 3 instancias en **PC 1** (y verificar que PostgreSQL esté en ejecución).
+   - **Segundo:** El Coordinador en **PC 2**, apuntando al host de PC 1.
+   - **Tercero:** El Balanceador en **PC 3**, apuntando al host de PC 2.
+   - **Cuarto:** El servidor Frontend en **PC 4**, apuntando al host de PC 3.
+6. Abrir el navegador en PC 4 en `http://localhost:3001` (o desde cualquier otro dispositivo de la red apuntando a `http://<IP_PC4>:3001`).
+7. **Demostración de tolerancia a fallos:** Mientras desde la interfaz web (PC 4) se genera una ráfaga de 100 Likes o peticiones continuas, detener con `Ctrl+C` cualquiera de las terminales de réplica en **PC 1**. El Coordinador detectará el fallo vía Heartbeat, aislará el nodo con el Circuit Breaker y el quórum ($W=2, R=2$) seguirá garantizando el éxito de las transacciones sin pérdida de datos.
 
-   ```properties
-   node1.host=192.168.1.11
-   node2.host=192.168.1.12
-   node3.host=192.168.1.13
-   ```
+## Evidencia y Arquitectura
 
-5. Verificar que el firewall de cada PC permita conexiones entrantes en
-   los puertos usados (6001-6003 en los nodos, 7000 en el coordinador).
-6. Iniciar primero los 3 nodos réplica (PC1-PC3), luego el coordinador
-   (PC4) y finalmente el cliente (PC5) apuntando a la IP de PC4.
-7. Para la demostración de tolerancia a fallos: mientras el cliente
-   (PC5) está generando likes, cerrar con `Ctrl+C` el proceso
-   `ReplicaNodeServer` en una de las PC1-PC3. El coordinador debe seguir
-   aceptando LIKE/GET usando los 2 nodos restantes (W=2, R=2), lo cual
-   queda registrado en `logs/coordinator.log` en PC4.
-
-## Evidencia de pruebas
-
-`docs/evidencia_ejecucion_coordinador.log` contiene el log completo de
-una ejecución de prueba: 100 likes con los 3 nodos activos, caída
-programada del nodo 3, detección por heartbeat, apertura del circuit
-breaker, y 100 likes adicionales exitosos usando solamente 2 de los 3
-nodos (evidenciando que el cuórum W=2/R=2 tolera la caída de 1 nodo).
-Esta evidencia corresponde a la versión previa del código (clases sin
-paquete); el comportamiento verificado es idéntico en la versión actual
-con arquitectura hexagonal, ya que solo cambió la organización de las
-clases, no la lógica.
+El sistema se ha validado y verificado en tiempo real utilizando la arquitectura hexagonal moderna para garantizar el aislamiento entre las capas de dominio (reglas de quórum), adaptadores de entrada (controladores REST) y adaptadores de salida (IA vía Ollama y Sockets/HTTP hacia las réplicas).

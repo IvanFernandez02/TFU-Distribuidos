@@ -26,34 +26,60 @@ async function apiPost(path, body = {}) {
   return res.json();
 }
 
-/* ─── Tarjeta del Coordinador y Balanceador (PC 4) ─── */
-function CoordinatorCard({ aiEnabled, aiPriority }) {
+/* ─── Tarjetas de Balanceador (PC 3) y Coordinador (PC 2) ─── */
+function LoadBalancerCard({ aiEnabled, aiPriority }) {
   return (
-    <div className="node-card node-card--coord">
+    <div className="node-card node-card--coord" style={{ marginBottom: '1rem' }}>
       <div className="node-card__header">
         <div className="node-card__info">
-          <h3>COORDINADOR & BALANCEADOR</h3>
-          <span>PC 4 · PUERTOS :8000 / :7000</span>
+          <h3>BALANCEADOR DE CARGA</h3>
+          <span>PC 3 · PUERTO :8000</span>
         </div>
         <span className="node-status-tag node-status-tag--alive">ACTIVO</span>
       </div>
       <div className="node-card__body">
-        <div className="node-card__count" style={{ fontSize: '1.25rem', color: '#4338ca' }}>
-          {aiEnabled ? 'OLLAMA IA ACTIVO' : 'ROUTING ROUND-ROBIN'}
+        <div className="node-card__count" style={{ fontSize: '1.15rem', color: '#7c3aed' }}>
+          {aiEnabled ? 'ENRUTAMIENTO INTELIGENTE (IA)' : 'ROUTING ROUND-ROBIN'}
         </div>
         <div className="node-card__count-label" style={{ marginTop: '0.25rem' }}>
-          {aiEnabled ? `Prioridad IA: ${aiPriority}` : 'Reparto equitativo de carga'}
+          {aiEnabled ? `Prioridad IA: ${aiPriority}` : 'Reparto equitativo hacia coordinadores'}
         </div>
       </div>
       <div className="node-card__footer">
-        <span>Algoritmo de Gifford (W=2, R=2)</span>
-        <span>Escucha REST</span>
+        <span>Microservicio Spring Boot</span>
+        <span>Gateway / Proxy REST</span>
       </div>
     </div>
   );
 }
 
-/* ─── Tarjeta de Réplica (PC 1, 2, 3) ─── */
+function CoordinatorCard({ aiEnabled }) {
+  return (
+    <div className="node-card node-card--coord">
+      <div className="node-card__header">
+        <div className="node-card__info">
+          <h3>COORDINADOR QUÓRUM</h3>
+          <span>PC 2 · PUERTO :7000</span>
+        </div>
+        <span className="node-status-tag node-status-tag--alive">ACTIVO</span>
+      </div>
+      <div className="node-card__body">
+        <div className="node-card__count" style={{ fontSize: '1.15rem', color: '#2563eb' }}>
+          {aiEnabled ? 'OLLAMA LLAMA3 / QWEN' : 'MODO DETERMINISTA'}
+        </div>
+        <div className="node-card__count-label" style={{ marginTop: '0.25rem' }}>
+          Gestión de Heartbeat & Circuit Breaker
+        </div>
+      </div>
+      <div className="node-card__footer">
+        <span>Gifford (N=3, W=2, R=2)</span>
+        <span>Escucha REST API</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tarjeta de Réplica (PC 1) ─── */
 function ReplicaCard({ id, node, count = 0 }) {
   const alive = node ? node.alive : false;
   const state = node ? (node.state || 'CLOSED') : 'OFFLINE';
@@ -63,7 +89,7 @@ function ReplicaCard({ id, node, count = 0 }) {
       <div className="node-card__header">
         <div className="node-card__info">
           <h3>RÉPLICA {id}</h3>
-          <span>PC {id} · PUERTO :{5999 + id}</span>
+          <span>PC 1 · PUERTO :{5999 + id}</span>
         </div>
         <span className={`node-status-tag ${alive ? 'node-status-tag--alive' : 'node-status-tag--dead'}`}>
           {alive ? 'VIVO' : 'CAÍDO'}
@@ -248,7 +274,7 @@ export default function App() {
           <div className="logo-box">RSL</div>
           <div className="title-box">
             <h1>Sistema de Replicación & Quórum Distribuido</h1>
-            <p>Topología 5 Computadoras · Sharded Likes · Gifford (N=3, W=2, R=2)</p>
+            <p>Topología 4 Computadoras · Sharded Likes · Gifford (N=3, W=2, R=2)</p>
           </div>
         </div>
         <div className="top-nav__right">
@@ -274,12 +300,13 @@ export default function App() {
         {/* TOPOLOGÍA DEL CLÚSTER */}
         <section className="panel">
           <div className="panel__title-bar">
-            <h2>🖥️ Topología y Estado en Tiempo Real (Las 5 Computadoras)</h2>
+            <h2>🖥️ Topología y Estado en Tiempo Real (Las 4 Computadoras)</h2>
             <span className="panel__subtitle">Supervisión en vivo de puertos, roles y almacenamiento PostgreSQL</span>
           </div>
           <div className="topology-grid">
             <div className="coord-column">
-              <CoordinatorCard aiEnabled={aiEnabled} aiPriority={aiPriority} />
+              <LoadBalancerCard aiEnabled={aiEnabled} aiPriority={aiPriority} />
+              <CoordinatorCard aiEnabled={aiEnabled} />
             </div>
             <div className="replicas-column">
               <ReplicaCard id={1} node={node1} count={count1} />

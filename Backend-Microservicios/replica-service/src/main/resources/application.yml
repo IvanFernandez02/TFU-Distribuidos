@@ -1,0 +1,29 @@
+# ==========================================================
+# Replica Service — Configuración por defecto (Nodo 1)
+# ==========================================================
+# Para lanzar como nodo 2 o 3, sobreescribir por línea de comandos:
+#   java -jar replica-service.jar --server.port=6002 --replica.node-id=2
+#     --spring.datasource.url=jdbc:postgresql://localhost:5432/replica_db_2
+# ==========================================================
+
+server:
+  port: 6001
+
+replica:
+  node-id: 1
+  # Simulación de fallo: poner > 0 para cerrar la app tras N segundos
+  fail-after-seconds: 0
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/replica_db_1
+    username: postgres
+    password: admin
+  # Desactivar autoconfiguración de DataSource de Spring Boot
+  # (usamos JDBC directo en ReplicaStore, igual que el original)
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+
+logging:
+  level:
+    com.quorum: INFO

@@ -112,6 +112,18 @@ Topología configurada y pre-armada para el laboratorio con **4 máquinas físic
 - **PC 3 (Servidor Balanceador de Carga)**: `192.168.1.12`
 - **PC 4 (Cliente / Frontend Web React)**: `192.168.1.11`
 
+> [!CAUTION]
+> **Conexión por Cable Ethernet a Switch (Sin Router / DHCP)**:
+> Al conectar las 4 computadoras mediante cables de red directos a un **Switch no administrado**, el switch no asignará direcciones IP automáticamente. Debes realizar lo siguiente antes de ejecutar los servicios:
+> 1. **Configurar IP Estática / Manual en el adaptador Ethernet (`eth0` / `enp...`)**: En cada PC, entra a la configuración de red por cable (Ajustes de Red en Linux o Network Adapter en Windows), selecciona **Manual (Estático)** y asigna la dirección IPv4 correspondiente (`192.168.1.10`, `.11`, `.12`, `.13`) con Máscara de Subred `255.255.255.0` (o `/24`).
+> 2. **Verificar cableado con `ping`**: Antes de abrir Java o Node, abre una terminal en la PC Cliente (`192.168.1.11`) y comprueba la comunicación a nivel de enlace de datos:
+>    ```bash
+>    ping -c 3 192.168.1.10   # Probar hacia PC Réplicas
+>    ping -c 3 192.168.1.13   # Probar hacia PC Coordinador
+>    ping -c 3 192.168.1.12   # Probar hacia PC Balanceador
+>    ```
+> 3. **Firewall en tarjeta de red**: Asegúrate de que el cortafuegos permita conexiones entrantes por la interfaz cableada o desactívalo temporalmente en el laboratorio (`sudo ufw disable` en Linux o desactivar Firewall en red privada en Windows).
+
 Gracias a los perfiles preconfigurados (`application-lan.yml` y scripts LAN), el lanzamiento en cada máquina se reduce a un solo comando:
 
 | Equipo | Rol & IP LAN | Comando de Ejecución en LAN |

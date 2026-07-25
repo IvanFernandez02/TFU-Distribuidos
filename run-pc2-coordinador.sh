@@ -4,12 +4,19 @@ echo "=========================================================="
 echo "  PC 2 — Servidor Coordinador (IP LAN: 192.168.1.13)     "
 echo "=========================================================="
 
-JAR_PATH="Backend-Microservicios/coordinator-service/target/coordinator-service-0.0.1-SNAPSHOT.jar"
+JAR_DIR="Backend-Microservicios/coordinator-service/target"
+JAR_PATH=$(find "$JAR_DIR" -maxdepth 1 -name "coordinator-service-*.jar" ! -name "*.original" 2>/dev/null | head -n 1 || true)
 
-if [ ! -f "$JAR_PATH" ]; then
-    echo "⚠️ No se encontró $JAR_PATH."
+if [ -z "$JAR_PATH" ] || [ ! -f "$JAR_PATH" ]; then
+    echo "⚠️ No se encontró el JAR compilado de coordinator-service."
     echo "🔨 Compilando coordinator-service con Maven..."
     cd Backend-Microservicios && mvn clean package -pl coordinator-service -am -DskipTests && cd ..
+    JAR_PATH=$(find "$JAR_DIR" -maxdepth 1 -name "coordinator-service-*.jar" ! -name "*.original" 2>/dev/null | head -n 1)
+fi
+
+if [ -z "$JAR_PATH" ] || [ ! -f "$JAR_PATH" ]; then
+    echo "❌ ERROR FATAL: No se pudo generar o encontrar el archivo JAR en $JAR_DIR."
+    exit 1
 fi
 
 echo "🔍 Verificando estado de Ollama IA local..."
@@ -19,7 +26,7 @@ else
     echo "ℹ️ Ollama no detectado en el puerto 11434. El Coordinador iniciará en modo 100% determinista (sin IA)."
 fi
 
-echo "🚀 Iniciando Coordinador en puerto 7000 apuntando a Réplicas en 192.168.1.10..."
+echo "🚀 Iniciando Coordinador en puerto 7000 usando: $JAR_PATH (apuntando a Réplicas en 192.168.1.10)..."
 echo "=========================================================="
 
 exec java -jar "$JAR_PATH" --spring.profiles.active=lan "$@"
